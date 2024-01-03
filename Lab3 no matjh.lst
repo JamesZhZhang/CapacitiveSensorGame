@@ -1,0 +1,429 @@
+0000              1   ;Fun fact about otters: They can reach swim speeds of up to 7 miles per hour.
+0000              2   ;This pace is three times faster than the average human swimmer!
+0000              3   ;Otters can hold their breath for 3-4 minutes, closing their nostrils and ears to keep out water.
+0000              4   ;Powerful tails propel them through the water. 
+0000              5   ;River otters have webbing between their toes to aid them as well!
+0000              6   
+                  8   $LIST
+0000             10   
+0000             11   org 0000H
+0000 0204F0      12      ljmp MyProgram
+0003             13      
+0003             14   ; Timer/Counter 2 overflow interrupt vector
+002B             15   org 0x002B
+002B 0204D8      16            ljmp Timer2_ISR
+002E             17   
+002E             18   ; These register definitions needed by 'math32.inc'
+0030             19   DSEG at 30H
+0030             20   x:   ds 4
+0034             21   y:   ds 4
+0038             22   bcd: ds 5
+003D             23   cap: ds 5
+0042             24   period: ds 5
+0047             25   freq: ds 5
+004C             26   T2ov: ds 2 ; 16-bit timer 2 overflow (to measure the period of very slow signals)
+004E             27   
+0000             28   BSEG
+0000             29   mf: dbit 1
+0001             30   pflag: dbit 1
+0002             31   fflag: dbit 1
+0003             32   cflag: dbit 1
+0004             33   
+                570   $LIST
+                 35   $LIST
+02C4             37   
+02C4             38   cseg
+02C4             39   ; These 'equ' must match the hardware wiring
+02C4             40   LCD_RS equ P3.2
+02C4             41   ;LCD_RW equ PX.X ; Not used in this code, connect the pin to GND
+02C4             42   LCD_E  equ P3.3
+02C4             43   LCD_D4 equ P3.4
+02C4             44   LCD_D5 equ P3.5
+02C4             45   LCD_D6 equ P3.6
+02C4             46   LCD_D7 equ P3.7
+02C4             47   
+                 49   	$LIST
+0370             51   
+0370             52   ;                     1234567890123456    <- This helps determine the location of the counter
+0370 50657269    53   Period_Message:  db 'Period (ns)     ', 0
+     6F642028
+     6E732920
+     20202020
+     00
+0381 4E6F2073    54   No_Signal_Str:    db 'No signal       ', 0
+     69676E61
+     6C202020
+     20202020
+     00
+0392 46726571    55   Freq_Message:      db 'Frequency (Hz)  ', 0
+     75656E63
+     79202848
+     7A292020
+     00
+03A3 43617061    56   Cap_Message:       db 'Capacitance (nF)', 0
+     63697461
+     6E636520
+     286E4629
+     00
+03B4 57686174    57   Initial_Message:  db 'Whats popping!', 0
+     7320706F
+     7070696E
+     672100
+03C3             58   
+03C3             59   Display:                 ;Determine which quantity to display
+03C3 20010A      60            jb pflag, Display_10_digit_BCD_period
+03C6 20025B      61            jb fflag, Display_10_digit_BCD_freq
+03C9 300303      62            jnb cflag, donedisplay
+03CC 020478      63            ljmp Display_10_digit_BCD_cap
+03CF             64            
+03CF             65   donedisplay:
+03CF 22          66            ret
+03D0             67   
+03D0             68   Display_10_digit_BCD_period:
+03D0 C0E0        69            push acc
+03D2 7401        69            mov a, #1
+03D4 14          69            dec a
+03D5 120355      69            lcall ?Set_Cursor_1 ; Select column and row
+03D8 D0E0        69            pop acc
+03DA C083        70            push dph
+03DC C082        70            push dpl
+03DE C0E0        70            push acc
+03E0 900370      70            mov dptr, #Period_Message
+03E3 120348      70            lcall ?Send_Constant_String
+03E6 D0E0        70            pop acc
+03E8 D082        70            pop dpl
+03EA D083        70            pop dph
+03EC C0E0        71            push acc
+03EE 7401        71            mov a, #1
+03F0 14          71            dec a
+03F1 120353      71            lcall ?Set_Cursor_2 ; Select column and row
+03F4 D0E0        71            pop acc
+03F6 C000        72            push ar0
+03F8 A846        72            mov r0, period+4
+03FA 12035A      72            lcall ?Display_BCD
+03FD D000        72            pop ar0
+03FF C000        73            push ar0
+0401 A845        73            mov r0, period+3
+0403 12035A      73            lcall ?Display_BCD
+0406 D000        73            pop ar0
+0408 C000        74            push ar0
+040A A844        74            mov r0, period+2
+040C 12035A      74            lcall ?Display_BCD
+040F D000        74            pop ar0
+0411 C000        75            push ar0
+0413 A843        75            mov r0, period+1
+0415 12035A      75            lcall ?Display_BCD
+0418 D000        75            pop ar0
+041A C000        76            push ar0
+041C A842        76            mov r0, period+0
+041E 12035A      76            lcall ?Display_BCD
+0421 D000        76            pop ar0
+0423 22          77            ret
+0424             78            
+0424             79   Display_10_digit_BCD_freq:
+0424 C0E0        80            push acc
+0426 7401        80            mov a, #1
+0428 14          80            dec a
+0429 120355      80            lcall ?Set_Cursor_1 ; Select column and row
+042C D0E0        80            pop acc
+042E C083        81            push dph
+0430 C082        81            push dpl
+0432 C0E0        81            push acc
+0434 900392      81            mov dptr, #Freq_Message
+0437 120348      81            lcall ?Send_Constant_String
+043A D0E0        81            pop acc
+043C D082        81            pop dpl
+043E D083        81            pop dph
+0440 C0E0        82            push acc
+0442 7401        82            mov a, #1
+0444 14          82            dec a
+0445 120353      82            lcall ?Set_Cursor_2 ; Select column and row
+0448 D0E0        82            pop acc
+044A C000        83            push ar0
+044C A84B        83            mov r0, freq+4
+044E 12035A      83            lcall ?Display_BCD
+0451 D000        83            pop ar0
+0453 C000        84            push ar0
+0455 A84A        84            mov r0, freq+3
+0457 12035A      84            lcall ?Display_BCD
+045A D000        84            pop ar0
+045C C000        85            push ar0
+045E A849        85            mov r0, freq+2
+0460 12035A      85            lcall ?Display_BCD
+0463 D000        85            pop ar0
+0465 C000        86            push ar0
+0467 A848        86            mov r0, freq+1
+0469 12035A      86            lcall ?Display_BCD
+046C D000        86            pop ar0
+046E C000        87            push ar0
+0470 A847        87            mov r0, freq+0
+0472 12035A      87            lcall ?Display_BCD
+0475 D000        87            pop ar0
+0477 22          88            ret
+0478             89            
+0478             90   Display_10_digit_BCD_cap:
+0478 C0E0        91            push acc
+047A 7401        91            mov a, #1
+047C 14          91            dec a
+047D 120355      91            lcall ?Set_Cursor_1 ; Select column and row
+0480 D0E0        91            pop acc
+0482 C083        92            push dph
+0484 C082        92            push dpl
+0486 C0E0        92            push acc
+0488 9003A3      92            mov dptr, #Cap_Message
+048B 120348      92            lcall ?Send_Constant_String
+048E D0E0        92            pop acc
+0490 D082        92            pop dpl
+0492 D083        92            pop dph
+0494 C0E0        93            push acc
+0496 7401        93            mov a, #1
+0498 14          93            dec a
+0499 120353      93            lcall ?Set_Cursor_2 ; Select column and row
+049C D0E0        93            pop acc
+049E             93   
+049E C000        94            push ar0
+04A0 A841        94            mov r0, cap+4
+04A2 12035A      94            lcall ?Display_BCD
+04A5 D000        94            pop ar0
+04A7 C000        95            push ar0
+04A9 A840        95            mov r0, cap+3
+04AB 12035A      95            lcall ?Display_BCD
+04AE D000        95            pop ar0
+04B0 C000        96            push ar0
+04B2 A83F        96            mov r0, cap+2
+04B4 12035A      96            lcall ?Display_BCD
+04B7 D000        96            pop ar0
+04B9 C000        97            push ar0
+04BB A83E        97            mov r0, cap+1
+04BD 12035A      97            lcall ?Display_BCD
+04C0 D000        97            pop ar0
+04C2 C000        98            push ar0
+04C4 A83D        98            mov r0, cap+0
+04C6 12035A      98            lcall ?Display_BCD
+04C9 D000        98            pop ar0
+04CB 22          99            ret
+04CC            100   
+04CC            101   ;Initializes timer/counter 2 as a 16-bit timer
+04CC            102   InitTimer2:
+04CC 75C800     103            mov T2CON, #0 ; Stop timer/counter.  Set as timer (clock input is pin 22.1184MHz).
+04CF            104            ; Set the reload value on overflow to zero (just in case is not zero)
+04CF 75CB00     105            mov RCAP2H, #0
+04D2 75CA00     106            mov RCAP2L, #0
+04D5 D2AD       107            setb ET2
+04D7 22         108       ret
+04D8            109   
+04D8            110   Timer2_ISR:
+04D8 C2CF       111            clr TF2  ; Timer 2 doesn't clear TF2 automatically. Do it in ISR
+04DA C0E0       112            push acc
+04DC 054C       113            inc T2ov+0
+04DE E54C       114            mov a, T2ov+0
+04E0 7002       115            jnz Timer2_ISR_done
+04E2 054D       116            inc T2ov+1
+04E4            117   Timer2_ISR_done:
+04E4 D0E0       118            pop acc
+04E6 32         119            reti
+04E7            120   
+04E7            121   ;---------------------------------;
+04E7            122   ; Hardware initialization         ;
+04E7            123   ;---------------------------------;
+04E7            124   Initialize_All:
+04E7 1204CC     125       lcall InitTimer2
+04EA 12031E     126       lcall LCD_4BIT ; Initialize LCD
+04ED D2AF       127       setb EA
+04EF 22         128            ret
+04F0            129   
+04F0            130   ;---------------------------------;
+04F0            131   ; Main program loop               ;
+04F0            132   ;---------------------------------;
+04F0            133   MyProgram:
+04F0            134       ; Initialize the hardware:
+04F0 75817F     135       mov SP, #7FH
+04F3 1204E7     136       lcall Initialize_All
+04F6 D280       137       setb P0.0 ; Pin is used as input
+04F8            138   
+04F8 C201       139            clr pflag
+04FA C202       140            clr fflag
+04FC C203       141            clr cflag
+04FE            142   
+04FE C0E0       143            push acc
+0500 7401       143            mov a, #1
+0502 14         143            dec a
+0503 120355     143            lcall ?Set_Cursor_1 ; Select column and row
+0506 D0E0       143            pop acc
+0508 C083       144            push dph
+050A C082       144            push dpl
+050C C0E0       144            push acc
+050E 9003B4     144            mov dptr, #Initial_Message
+0511 120348     144            lcall ?Send_Constant_String
+0514 D0E0       144            pop acc
+0516 D082       144            pop dpl
+0518 D083       144            pop dph
+051A            145       
+051A            146   forever:
+051A            147       ; synchronize with rising edge of the signal applied to pin P0.0
+051A C2CA       148       clr TR2 ; Stop timer 2
+051C 75CC00     149       mov TL2, #0
+051F 75CD00     150       mov TH2, #0
+0522 754C00     151       mov T2ov+0, #0
+0525 754D00     152       mov T2ov+1, #0
+0528 C2CF       153       clr TF2
+052A D2CA       154       setb TR2
+052C            155   synch1:
+052C E54D       156            mov a, T2ov+1
+052E 54FE       157            anl a, #0xfe
+0530 7034       158            jnz no_signal ; If the count is larger than 0x01ffffffff*45ns=1.16s, we assume there is no signal
+0532 2080F7     159       jb P0.0, synch1
+0535            160   synch2:    
+0535 E54D       161            mov a, T2ov+1
+0537 54FE       162            anl a, #0xfe
+0539 702B       163            jnz no_signal
+053B 3080F7     164       jnb P0.0, synch2
+053E            165       
+053E            166       ; Measure the period of the signal applied to pin P0.0
+053E C2CA       167       clr TR2
+0540 75CC00     168       mov TL2, #0
+0543 75CD00     169       mov TH2, #0
+0546 754C00     170       mov T2ov+0, #0
+0549 754D00     171       mov T2ov+1, #0
+054C C2CF       172       clr TF2
+054E D2CA       173       setb TR2 ; Start timer 2
+0550            174   measure1:
+0550 E54D       175            mov a, T2ov+1
+0552 54FE       176            anl a, #0xfe
+0554 7010       177            jnz no_signal 
+0556 2080F7     178       jb P0.0, measure1
+0559            179   measure2:    
+0559 E54D       180            mov a, T2ov+1
+055B 54FE       181            anl a, #0xfe
+055D 7007       182            jnz no_signal
+055F 3080F7     183       jnb P0.0, measure2
+0562 C2CA       184       clr TR2 ; Stop timer 2, [T2ov+1, T2ov+0, TH2, TL2] * 45.21123ns is the period
+0564            185   
+0564 801F       186            sjmp skip_this
+0566            187   no_signal:       
+0566 C0E0       188            push acc
+0568 7401       188            mov a, #1
+056A 14         188            dec a
+056B 120353     188            lcall ?Set_Cursor_2 ; Select column and row
+056E D0E0       188            pop acc
+0570 C083       189            push dph
+0572 C082       189            push dpl
+0574 C0E0       189            push acc
+0576 900381     189            mov dptr, #No_Signal_Str
+0579 120348     189            lcall ?Send_Constant_String
+057C D0E0       189            pop acc
+057E D082       189            pop dpl
+0580 D083       189            pop dph
+0582 02051A     190       ljmp forever ; Repeat! 
+0585            191   skip_this:
+0585            192   
+0585            193            ; Make sure [T2ov+1, T2ov+2, TH2, TL2]!=0
+0585 E5CC       194            mov a, TL2
+0587 45CD       195            orl a, TH2
+0589 454C       196            orl a, T2ov+0
+058B 454D       197            orl a, T2ov+1
+058D 60D7       198            jz no_signal
+058F            199            ; Using integer math, convert the period to frequency:
+058F 85CC30     200            mov x+0, TL2
+0592 85CD31     201            mov x+1, TH2
+0595 854C32     202            mov x+2, T2ov+0
+0598 854D33     203            mov x+3, T2ov+1
+059B 75342D     204            mov y+0, #low (45 % 0x10000) 
+059E 753500     204            mov y+1, #high(45 % 0x10000) 
+05A1 753600     204            mov y+2, #low (45 / 0x10000) 
+05A4 753700     204            mov y+3, #high(45 / 0x10000)  ; One clock pulse is 1/22.1184MHz=45.21123ns
+05A7 1201A8     205            lcall mul32
+05AA            206            
+05AA            207            ;storing period
+05AA 12002E     208            lcall hex2bcd
+05AD 853C46     209            mov period+4, bcd+4
+05B0 853B45     210            mov period+3, bcd+3
+05B3 853A44     211            mov period+2, bcd+2
+05B6 853943     212            mov period+1, bcd+1
+05B9 853842     213            mov period+0, bcd+0
+05BC            214            
+05BC            215            ;calculating capacitance
+05BC 75349B     216            mov y+0, #low (667 % 0x10000) 
+05BF 753502     216            mov y+1, #high(667 % 0x10000) 
+05C2 753600     216            mov y+2, #low (667 / 0x10000) 
+05C5 753700     216            mov y+3, #high(667 / 0x10000) 
+05C8 120235     217            lcall div32
+05CB            218            
+05CB            219            ;storing capacitance
+05CB 12002E     220            lcall hex2bcd
+05CE 853C41     221            mov cap+4, bcd+4
+05D1 853B40     222            mov cap+3, bcd+3
+05D4 853A3F     223            mov cap+2, bcd+2
+05D7 85393E     224            mov cap+1, bcd+1
+05DA 85383D     225            mov cap+0, bcd+0
+05DD            226   
+05DD            227            ;measuring frequency
+05DD            228            ;putting period back in x
+05DD 85CC30     229            mov x+0, TL2
+05E0 85CD31     230            mov x+1, TH2
+05E3 854C32     231            mov x+2, T2ov+0
+05E6 854D33     232            mov x+3, T2ov+1
+05E9 75342D     233            mov y+0, #low (45 % 0x10000) 
+05EC 753500     233            mov y+1, #high(45 % 0x10000) 
+05EF 753600     233            mov y+2, #low (45 / 0x10000) 
+05F2 753700     233            mov y+3, #high(45 / 0x10000)  
+05F5 1201A8     234            lcall mul32
+05F8            235            
+05F8 12029E     236            lcall copy_xy   ;copy x (period) to y
+05FB 753000     237            mov x+0, #low (1000000000 % 0x10000) 
+05FE 7531CA     237            mov x+1, #high(1000000000 % 0x10000) 
+0601 75329A     237            mov x+2, #low (1000000000 / 0x10000) 
+0604 75333B     237            mov x+3, #high(1000000000 / 0x10000) 
+0607 120235     238            lcall div32
+060A            239            
+060A            240            ;storing frequency
+060A 12002E     241            lcall hex2bcd
+060D 853C4B     242            mov freq+4, bcd+4
+0610 853B4A     243            mov freq+3, bcd+3
+0613 853A49     244            mov freq+2, bcd+2
+0616 853948     245            mov freq+1, bcd+1
+0619 853847     246            mov freq+0, bcd+0
+061C            247   
+061C            248   ;buttons for choosing between period, frequency, and capacitance
+061C            249   Pbutton:
+061C 20C515     250            jb P4.5, fbutton
+061F C002       251            push AR2
+0621 7A32       251            mov R2, #50
+0623 1202CF     251            lcall ?Wait_Milli_Seconds
+0626 D002       251            pop AR2
+0628 20C509     252            jb P4.5, fbutton
+062B 30C5FD     253            jnb P4.5, $
+062E D201       254            setb pflag
+0630 C202       255            clr fflag
+0632 C203       256            clr cflag
+0634            257            
+0634            258   fbutton:
+0634 20A615     259            jb P2.6, cbutton
+0637 C002       260            push AR2
+0639 7A32       260            mov R2, #50
+063B 1202CF     260            lcall ?Wait_Milli_Seconds
+063E D002       260            pop AR2
+0640 20A609     261            jb P2.6, cbutton
+0643 30A6FD     262            jnb P2.6, $
+0646 D202       263            setb fflag
+0648 C201       264            clr pflag
+064A C203       265            clr cflag
+064C            266            
+064C            267   cbutton:
+064C 20A315     268            jb P2.3, nobutton
+064F C002       269            push AR2
+0651 7A32       269            mov R2, #50
+0653 1202CF     269            lcall ?Wait_Milli_Seconds
+0656 D002       269            pop AR2
+0658 20A309     270            jb P2.3, nobutton
+065B 30A3FD     271            jnb P2.3, $
+065E C201       272            clr pflag
+0660 C202       273            clr fflag
+0662 D203       274            setb cflag
+0664            275            
+0664            276   nobutton:        
+0664 1203C3     277            lcall Display
+0667 02051A     278       ljmp forever ; Repeat! 
+066A            279       
+066A            280   
+066A            281   en

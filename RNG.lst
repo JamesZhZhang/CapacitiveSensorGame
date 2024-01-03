@@ -1,0 +1,257 @@
+                  2   $LIST
+0000              4   
+0000              5   CLK           EQU 22118400 ; Microcontroller system crystal frequency in Hz
+0000              6   TIMER0_RATE1   EQU 2048     ; 2048Hz squarewave (peak amplitude of CEM-1203 speaker)
+0000              7   TIMER0_RELOAD_1 EQU ((65536-(CLK/TIMER0_RATE1)))
+0000              8   
+0000              9   TIMER0_RATE2   EQU 4096     ; 2048Hz squarewave (peak amplitude of CEM-1203 speaker)
+0000             10   TIMER0_RELOAD_2 EQU ((65536-(CLK/TIMER0_RATE2)))
+0000             11   
+0000             12   SOUND_OUT   equ P1.1 ;speaker pin 1.1
+0000             13   
+0000             14   TIMER0_RATE   EQU 4096     ; 2048Hz squarewave (peak amplitude of CEM-1203 speaker)
+0000             15   TIMER0_RELOAD EQU ((65536-(CLK/TIMER0_RATE)))
+0000             16   
+0000             17   org 0000H
+0000 020431      18      ljmp MyProgram
+0003             19   
+0003             20   ; These register definitions needed by 'math32.inc'
+0030             21   DSEG at 30H
+0030             22   x:   ds 4
+0034             23   y:   ds 4
+0038             24   bcd: ds 5
+003D             25   Seed: ds 4
+0041             26   
+                570   $LIST
+                 28   $LIST
+0299             30   
+0000             31   bseg
+0000             32   HLbit:   dbit 1
+0001             33   mf:              dbit 1
+0002             34   WaitBit: dbit 1
+0003             35   
+0299             36   cseg
+0299             37   ; These 'equ' must match the hardware wiring
+0299             38   LCD_RS equ P3.2
+0299             39   ;LCD_RW equ PX.X ; Not used in this code, connect the pin to GND
+0299             40   LCD_E  equ P3.3
+0299             41   LCD_D4 equ P3.4
+0299             42   LCD_D5 equ P3.5
+0299             43   LCD_D6 equ P3.6
+0299             44   LCD_D7 equ P3.7
+0299             45   
+0299             46   
+                 49   	$LIST
+0345             51   
+0345 796500      52   testMessage:  db 'ye', 0
+0348 657900      53   test2:                   db 'ey', 0
+034B             54   
+034B             55   ;---------------------------------;
+034B             56   ; Routine to initialize the ISR   ;
+034B             57   ; for timer 0                     ;
+034B             58   ;---------------------------------;
+034B             59   ; TR0 Bit set to 0 in the Timer0_initilization subroutine so that the speaker would start OFF
+034B             60   ; To start beeping, set the TR0 bit to 1 and also make it flash by turning it on and off
+034B             61   
+034B             62   Timer0_Init:
+034B             63            ;mov TR0, #0    ;set TR0 to 0 so starts off 
+034B             64   
+034B E589        65   mov a, TMOD
+034D 54F0        66            anl a, #0xf0 ; Clear the bits for timer 0
+034F 4401        67            orl a, #0x01 ; Configure timer 0 as 16-timer
+0351 F589        68            mov TMOD, a
+0353 758CEA      69            mov TH0, #high(TIMER0_RELOAD)
+0356 758AE8      70            mov TL0, #low(TIMER0_RELOAD)
+0359             71            ; Set autoreload value
+0359 75F4EA      72            mov RH0, #high(TIMER0_RELOAD)
+035C 75F2E8      73            mov RL0, #low(TIMER0_RELOAD)
+035F             74   
+035F D28C        75       setb TR0  ; Start timer 0
+0361 22          76            ret
+0362             77   
+0362             78   ;---------------------------------;
+0362             79   ; RNG Code            ;
+0362             80   ;---------------------------------;
+0362             81   ; should emit random sound at end based on generated code
+0362             82   
+0362             83   Random:
+0362 853D30      84   mov x+0,Seed+0
+0365 853E31      85   mov x+1, Seed+1
+0368 853F32      86   mov x+2, Seed+2
+036B 854033      87   mov x+3, Seed+3
+036E 7534FD      88            mov y+0, #low (214013 % 0x10000) 
+0371 753543      88            mov y+1, #high(214013 % 0x10000) 
+0374 753603      88            mov y+2, #low (214013 / 0x10000) 
+0377 753700      88            mov y+3, #high(214013 / 0x10000) 
+037A 12017D      89   lcall mul32
+037D 7534C3      90            mov y+0, #low (2531011 % 0x10000) 
+0380 75359E      90            mov y+1, #high(2531011 % 0x10000) 
+0383 753626      90            mov y+2, #low (2531011 / 0x10000) 
+0386 753700      90            mov y+3, #high(2531011 / 0x10000) 
+0389 85303D      91   mov Seed+0,x+0
+038C 85313E      92   mov Seed+1,x+1
+038F 85323F      93       mov Seed+2, x+2
+0392 853340      94       mov Seed+3,x+3
+0395 22          95       ret
+0396             96   
+0396             97   ;---------------------------------;
+0396             98   ;   Waits a rando                 ;
+0396             99   ;---------------------------------;
+0396            100   
+0396            101   Wait_Random:
+0396 C002       102            push AR2
+0398 7A32       102            mov R2, #50
+039A 1202A4     102            lcall ?Wait_Milli_Seconds
+039D D002       102            pop AR2
+039F C002       103            push AR2
+03A1 7AFA       103            mov R2, #250
+03A3 1202A4     103            lcall ?Wait_Milli_Seconds
+03A6 D002       103            pop AR2
+03A8 C002       104            push AR2
+03AA 7AFA       104            mov R2, #250
+03AC 1202A4     104            lcall ?Wait_Milli_Seconds
+03AF D002       104            pop AR2
+03B1 C0E0       105            push acc
+03B3 7401       105            mov a, #1
+03B5 14         105            dec a
+03B6 12032A     105            lcall ?Set_Cursor_1 ; Select column and row
+03B9 D0E0       105            pop acc
+03BB C083       106            push dph
+03BD C082       106            push dpl
+03BF C0E0       106            push acc
+03C1 900345     106            mov dptr, #testMessage
+03C4 12031D     106            lcall ?Send_Constant_String
+03C7 D0E0       106            pop acc
+03C9 D082       106            pop dpl
+03CB D083       106            pop dph
+03CD 22         107            ret
+03CE            108   ;---------------------------------;
+03CE            109   ;  tone 2                           ;
+03CE            110   ;---------------------------------;
+03CE            111   tone2:
+03CE 020396     112   ljmp Wait_Random
+03D1            113   
+03D1 75F4EA     114   mov RH0, #high(TIMER0_RELOAD_2)
+03D4 75F2E8     115   mov RL0, #low(TIMER0_RELOAD_2)
+03D7            116   
+03D7 D291       117   setb SOUND_OUT
+03D9            118   ;Wait_Milli_Seconds(#255)
+03D9            119   ;Wait_Milli_Seconds(#255)
+03D9            120   ;Wait_Milli_Seconds(#255)
+03D9            121   ;Wait_Milli_Seconds(#255)
+03D9 C291       122   clr SOUND_OUT
+03DB            123   
+03DB 22         124   ret
+03DC            125   
+03DC            126   ;---------------------------------;
+03DC            127   ;  tone 1                     ;
+03DC            128   ;---------------------------------;
+03DC            129   tone1:
+03DC            130   
+03DC C0E0       131            push acc
+03DE 7401       131            mov a, #1
+03E0 14         131            dec a
+03E1 12032A     131            lcall ?Set_Cursor_1 ; Select column and row
+03E4 D0E0       131            pop acc
+03E6            131   
+03E6 C083       132            push dph
+03E8 C082       132            push dpl
+03EA C0E0       132            push acc
+03EC 900345     132            mov dptr, #testMessage
+03EF 12031D     132            lcall ?Send_Constant_String
+03F2 D0E0       132            pop acc
+03F4 D082       132            pop dpl
+03F6 D083       132            pop dph
+03F8 C002       133            push AR2
+03FA 7AFA       133            mov R2, #250
+03FC 1202A4     133            lcall ?Wait_Milli_Seconds
+03FF D002       133            pop AR2
+0401 C002       134            push AR2
+0403 7AFA       134            mov R2, #250
+0405 1202A4     134            lcall ?Wait_Milli_Seconds
+0408 D002       134            pop AR2
+040A C002       135            push AR2
+040C 7AFA       135            mov R2, #250
+040E 1202A4     135            lcall ?Wait_Milli_Seconds
+0411 D002       135            pop AR2
+0413 C002       136            push AR2
+0415 7AFA       136            mov R2, #250
+0417 1202A4     136            lcall ?Wait_Milli_Seconds
+041A D002       136            pop AR2
+041C            137   
+041C 22         138   ret 
+041D            139   
+041D            140   Seed_set:
+041D D28C       141            setb TR0        ;start timer 0
+041F 20C5FD     142       jb P4.5,$
+0422 858C3D     143       mov Seed+0,TH0
+0425 753E01     144       mov Seed+1,#0x01
+0428 753F87     145       mov Seed+2, #0x87
+042B 858A40     146       mov Seed+3,TL0
+042E C28C       147       clr TR0 ;stop timer 0
+0430 22         148   ret
+0431            149   
+0431            150   ;---------------------------------;
+0431            151   ; Main Code                     ;
+0431            152   ;---------------------------------;
+0431            153   ; Initialize the hardware:
+0431            154   MyProgram:
+0431 75817F     155       mov SP, #7FH
+0434 12034B     156       lcall Timer0_Init
+0437 1202F3     157       lcall LCD_4BIT
+043A C28C       158       clr TR0
+043C 758A00     159       mov TL0, #0
+043F 758C00     160       mov TH0, #0
+0442            161       
+0442 C202       162       clr WaitBit
+0444            163       
+0444            164       ;clearing the seed 
+0444 753D00     165            mov Seed+0,#0x0
+0447 753E00     166       mov Seed+1,#0x0
+044A 753F00     167       mov Seed+2, #0x0
+044D 754000     168       mov Seed+3,#0x0
+0450            169       
+0450 12041D     170       lcall Seed_set
+0453            171       
+0453            172   
+0453            173   forever:
+0453            174   
+0453 C0E0       175            push acc
+0455 7401       175            mov a, #1
+0457 14         175            dec a
+0458 120328     175            lcall ?Set_Cursor_2 ; Select column and row
+045B D0E0       175            pop acc
+045D            175   
+045D C083       176            push dph
+045F C082       176            push dpl
+0461 C0E0       176            push acc
+0463 900348     176            mov dptr, #test2
+0466 12031D     176            lcall ?Send_Constant_String
+0469 D0E0       176            pop acc
+046B D082       176            pop dpl
+046D D083       176            pop dph
+046F            177   
+046F            178            ;choosing tone to play
+046F 120362     179       lcall Random
+0472 E53E       180       mov a, Seed+1
+0474 A2E3       181       mov c, acc.3         ;Use an arbitrary bit of 32-bit seed 
+0476 9200       182       mov HLbit, c
+0478            183   
+0478            184            
+0478            185       ;jc call_tone2
+0478 0203DC     186       ljmp tone1
+047B 8003       187       sjmp no_tone2
+047D            188       
+047D            189   call_tone2:
+047D 0203CE     190       ljmp tone2
+0480            191   ;else jump tone 1 if HLbit is other
+0480            192   
+0480            193   no_tone2:
+0480 020453     194            ljmp forever
+0483            195            
+0483 753480     196            mov y+0, #low (250000000 % 0x10000) 
+0486 7535B2     196            mov y+1, #high(250000000 % 0x10000) 
+0489 7536E6     196            mov y+2, #low (250000000 / 0x10000) 
+048C 75370E     196            mov y+3, #high(250000000 / 0x10000) 
+048F            197            
+048F            198   END

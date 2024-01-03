@@ -1,0 +1,85 @@
+                  2   $LIST
+0000              4   
+0000              5   CLK           EQU 22118400 ; Microcontroller system crystal frequency in Hz
+0000              6   TIMER0_RATE0  EQU ((2048*2)+100)
+0000              7   TIMER0_RATE1  EQU ((2048*2)-100)
+0000              8   TIMER0_RELOAD0 EQU ((65536-(CLK/TIMER0_RATE0)))
+0000              9   TIMER0_RELOAD1 EQU ((65536-(CLK/TIMER0_RATE1)))
+0000             10   
+0000             11   SOUND_OUT EQU P1.1
+0000             12   
+0000             13   org 0000H
+0000 020037      14      ljmp Startup
+0003             15   
+0003             16   ; Timer/Counter 0 overflow interrupt vector
+000B             17   org 0x000B
+000B 020027      18            ljmp Timer0_ISR
+000E             19   
+000E             20   ;---------------------------------;
+000E             21   ; Routine to initialize the ISR   ;
+000E             22   ; for timer 0                     ;
+000E             23   ;---------------------------------;
+000E             24   InitTimer0:
+000E E589        25            mov a, TMOD
+0010 54F0        26            anl a, #0xf0 ; 11110000 Clear the bits for timer 0
+0012 4401        27            orl a, #0x01 ; 00000001 Configure timer 0 as 16-timer
+0014 F589        28            mov TMOD, a
+0016 758CEA      29            mov TH0, #high(TIMER0_RELOAD1)
+0019 758A61      30            mov TL0, #low(TIMER0_RELOAD1)
+001C             31            ; Set autoreload value
+001C 75F4EA      32            mov RH0, #high(TIMER0_RELOAD1)
+001F 75F261      33            mov RL0, #low(TIMER0_RELOAD1)
+0022             34            ; Enable the timer and interrupts
+0022 D2A9        35       setb ET0  ; Enable timer 0 interrupt
+0024 D28C        36       setb TR0  ; Start timer 0
+0026 22          37            ret
+0027             38   
+0027             39   ;---------------------------------;
+0027             40   ; ISR for timer 0.  Set to execute;
+0027             41   ; every 1/4096Hz to generate a    ;
+0027             42   ; 2048 Hz square wave at pin P1.1 ;
+0027             43   ;---------------------------------;
+0027             44   Timer0_ISR:
+0027 B291        45            cpl SOUND_OUT ; Connect speaker to P1.1!
+0029 32          46            reti
+002A             47   
+002A             48   ; When using a 22.1184MHz crystal in fast mode
+002A             49   ; one cycle takes 1.0/22.1184MHz = 45.21123 ns
+002A             50   WaitHalfSec:
+002A 7A59        51       mov R2, #89
+002C 79FA        52   L3: mov R1, #250
+002E 78A6        53   L2: mov R0, #166
+0030 D8FE        54   L1: djnz R0, L1 ; 3 cycles->3*45.21123ns*166=22.51519us
+0032 D9FA        55       djnz R1, L2 ; 22.51519us*250=5.629ms
+0034 DAF6        56       djnz R2, L3 ; 5.629ms*89=0.5s (approximately)
+0036 22          57       ret
+0037             58   
+0037             59   ;---------------------------------;
+0037             60   ; Hardware and variable           ;
+0037             61   ; initialization                  ;
+0037             62   ;---------------------------------;
+0037             63   Startup:
+0037             64       ; Initialize the hardware:
+0037 75817F      65       mov SP, #7FH
+003A 12000E      66       lcall InitTimer0
+003D D2AF        67       setb EA
+003F             68       
+003F             69   ;---------------------------------;
+003F             70   ; Main program loop               ;
+003F             71   ;---------------------------------;  
+003F             72   forever:
+003F 12002A      73            lcall WaitHalfSec
+0042 C28C        74            clr TR0
+0044 75F4EA      75            mov RH0, #high(TIMER0_RELOAD1)
+0047 75F261      76            mov RL0, #low(TIMER0_RELOAD1)
+004A D28C        77            setb TR0
+004C             78            
+004C 12002A      79            lcall WaitHalfSec
+004F C28C        80            clr TR0
+0051 75F4EB      81            mov RH0, #high(TIMER0_RELOAD0)
+0054 75F269      82            mov RL0, #low(TIMER0_RELOAD0)
+0057 D28C        83            setb TR0
+0059             84            
+0059 02003F      85       ljmp forever ; Repeat! 
+005C             86   
+005C             87   en
